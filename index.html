@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV to Excel - Ubah Data</title>
+    <title>CSV to Excel - Custom Naming</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
@@ -43,7 +43,7 @@
 
 <div class="container">
     <h2>Convert CSV ke Excel</h2>
-    <p class="subtitle">Otomasi pengubah file csv ke excel</p>
+    <p class="subtitle">Otomasi pengubah file csv ke excel dengan Penamaan Otomatis</p>
 
     <div id="drop-zone">
         <strong style="font-size: 1.2em;">Tarik & Lepaskan File CSV di Sini</strong><br>
@@ -53,8 +53,7 @@
 
     <div class="info-box">
         <strong>Fitur Otomatis:</strong><br>
-        - Kolom <b>ALAMAT</b> akan dipotong untuk ambil RT dan RW<br>
-        - Kolom baru <b>RT</b> dan <b>RW</b> akan dibuat (Format: 001, 010, dll)<br>
+        - Kolom <b>ALAMAT</b> dipisah menjadi kolom RT & RW .<br>
     </div>
 
     <div id="status" class="status-bar"></div>
@@ -73,7 +72,7 @@
     const fileInput = document.getElementById('fileInput');
     const statusDiv = document.getElementById('status');
     let csvData = [];
-    let originalFileName = "data_export";
+    let generatedFileName = "data_export";
 
     dropZone.onclick = () => fileInput.click();
     dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
@@ -86,13 +85,22 @@
     fileInput.onchange = (e) => { if (e.target.files.length > 0) processFile(e.target.files[0]); };
 
     function processFile(file) {
-        originalFileName = file.name.replace(/\.[^/.]+$/, "");
-        
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
             dynamicTyping: false,
             complete: function(results) {
+                if (results.data.length > 0) {
+                    // AMBIL DATA UNTUK NAMA FILE (dari baris pertama)
+                    const firstRow = results.data[0];
+                    const kab = (firstRow["KAB_NAME"] || "KAB").replace(/\s+/g, '_');
+                    const kec = (firstRow["KEC_NAME"] || "KEC").replace(/\s+/g, '_');
+                    const bansos = (firstRow["BANSOS"] || "BANSOS").replace(/\s+/g, '_');
+                    
+                    // Set nama file baru
+                    generatedFileName = `${kab}_${kec}_${bansos}`.toUpperCase();
+                }
+
                 // PROSES TRANSFORMASI DATA
                 csvData = results.data.map(row => {
                     let fullAlamat = row["ALAMAT"] || "";
@@ -100,21 +108,16 @@
                     let rwVal = "";
                     let cleanAlamat = fullAlamat;
 
-                    // Mencari RT dan RW menggunakan regex
-                    // Mencari pola RT: (angka) dan RW: (angka)
                     const rtMatch = fullAlamat.match(/RT:(\d+)/i);
                     const rwMatch = fullAlamat.match(/RW:(\d+)/i);
 
-                    if (rtMatch) rtVal = rtMatch[1].padStart(3, '0'); // Ubah 3 jadi 003
-                    if (rwMatch) rwVal = rwMatch[1].padStart(3, '0'); // Ubah 11 jadi 011
+                    if (rtMatch) rtVal = rtMatch[1].padStart(3, '0');
+                    if (rwMatch) rwVal = rwMatch[1].padStart(3, '0');
 
-                    // Bersihkan alamat: ambil teks sebelum kata RT:
                     if (fullAlamat.toUpperCase().includes("RT:")) {
                         cleanAlamat = fullAlamat.split(/RT:/i)[0].trim();
                     }
 
-                    // Susun ulang baris data
-                    // Menghapus ALAMAT lama dan mengganti dengan yang bersih + RT + RW
                     const { ALAMAT, ...rest } = row;
                     return {
                         ...rest,
@@ -124,7 +127,7 @@
                     };
                 });
 
-                statusDiv.innerText = "✓ Berhasil memproses " + csvData.length + " data dengan pemisahan RT/RW.";
+                statusDiv.innerText = `✓ Berhasil memproses ${csvData.length} data. Nama file disiapkan: ${generatedFileName}.xlsx`;
                 statusDiv.style.display = "block";
                 renderPreview(csvData.slice(0, 10));
                 document.getElementById('preview-container').style.display = 'block';
@@ -161,8 +164,8 @@
                 if (isTextCol) {
                     const cellAddress = XLSX.utils.encode_cell({r: rowIndex + 1, c: colIndex});
                     if (ws[cellAddress]) {
-                        ws[cellAddress].t = 's'; // Force String
-                        ws[cellAddress].z = '@'; // Excel Text Format
+                        ws[cellAddress].t = 's';
+                        ws[cellAddress].z = '@';
                     }
                 }
             });
@@ -170,12 +173,10 @@
         });
 
         ws['!cols'] = wscols; 
-        XLSX.utils.book_append_sheet(wb, ws, "Data_Siap");
-        XLSX.writeFile(wb, `${originalFileName}_RAID_CLEAN.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Data");
+        XLSX.writeFile(wb, `${generatedFileName}.xlsx`);
     };
 </script>
 
 </body>
-
 </html>
-
